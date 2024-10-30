@@ -1,4 +1,4 @@
-// import Layout from '@/layouts/Layout'
+import Layout from '@/layouts/Layout'
 import { Link } from "inertia-adapter-solid";
 import { Show } from "solid-js";
 import { Title } from "@solidjs/meta"
@@ -8,7 +8,7 @@ const Home = (props: { user: { name: string; logged_in: boolean; } }) => {
   return (
     <>
       <Title>HomePage</Title>
-      <main class="flex min-h-screen flex-col items-center justify-center bg-pink-300">
+      <main class="flex min-h-screen flex-col items-center justify-center">
         <div class="container flex flex-col items-center justify-center gap-12 px-4 py-16 ">
           <div class="flex flex-col items-center gap-2">
             <AuthShowcase name={user().name} loggedIn={user().logged_in} />
@@ -20,6 +20,8 @@ const Home = (props: { user: { name: string; logged_in: boolean; } }) => {
 };
 
 export default Home;
+
+Home.layout = Layout;
 
 const AiFillGithub = (props: { size: string }) => {
   return (
@@ -37,7 +39,7 @@ const AuthShowcase = (props: { loggedIn: boolean; name: string; }) => {
         fallback={
           <a href="/auth?provider=github">
             <button
-              class="rounded-full flex flex-row justify-center bg-white/20 items-center gap-x-4 px-10 py-7 font-extrabold text-white no-underline transition hover:bg-white/20 bg-pink-400"
+              class="flex flex-row items-center justify-center gap-x-4 rounded-full bg-pink-400 bg-white/20 px-10 py-7 font-extrabold text-white no-underline transition hover:bg-white/20"
             >
               <span>
                 <AiFillGithub size="35" />
@@ -50,8 +52,14 @@ const AuthShowcase = (props: { loggedIn: boolean; name: string; }) => {
         <span class="text-3xl text-white">Welcome {name()}</span>
 
         <Link href="/dashboard">
-          <button class="text-slate-100 text-xl font-bold border p-4 rounded-full bg-rose-400 w-48">
+          <button class="w-48 rounded-full border bg-rose-400 p-4 text-xl font-bold text-slate-100">
             Dashboard
+          </button>
+        </Link>
+
+        <Link href="/porkbun">
+          <button class="w-48 rounded-full border bg-rose-600 p-4 text-2xl font-extrabold text-slate-100">
+            Porkbun
           </button>
         </Link>
 

@@ -53,17 +53,8 @@ func setupRoute(i *inertia.Inertia) http.Handler {
 }
 
 func dashboardRoute(i *inertia.Inertia) http.Handler {
-	admin := os.Getenv("ADMIN_NAME")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := getCookie(r)
-		if err != nil {
-			i.Location(w, r, "/")
-			return
-		}
-		if cookie != admin {
-			i.Location(w, r, "/")
-			return
-		}
+		authenticated(i, w, r)
 		pageErr := i.Render(w, r, "Dashboard", inertia.Props{"url": os.Getenv("VITE_BASE_URL")})
 		if pageErr != nil {
 			handleServerErr(w, pageErr)
@@ -81,35 +72,43 @@ type InputData struct {
 	Description string `json:"description"`
 }
 
-func dataRoute(i *inertia.Inertia) http.Handler {
+func checkPostJson(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return
+	}
+}
+
+func fromJSON[T any](w http.ResponseWriter, r *http.Request) (T, error) {
+	var data T
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Error reading request body", http.StatusInternalServerError)
+		return data, err
+	}
+	defer r.Body.Close()
+
+	err = json.Unmarshal(body, &data)
+
+	if err != nil {
+		http.Error(w, "Error parsing JSON: "+err.Error(), http.StatusBadRequest)
+		return data, err
+	}
+	return data, nil
+}
+
+func dataRoute() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
+		checkPostJson(w, r)
+		data, err := fromJSON[InputData](w, r)
+		if err == nil {
+			fmt.Printf("Received data: %+v\n", data)
 		}
-		contentType := r.Header.Get("Content-Type")
-		if contentType != "application/json" {
-			http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
-			return
-		}
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Error reading request body", http.StatusInternalServerError)
-			return
-		}
-		defer r.Body.Close()
-
-		var data InputData
-
-		err = json.Unmarshal(body, &data)
-
-		if err != nil {
-			http.Error(w, "Error parsing JSON: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		fmt.Printf("Received data: %+v\n", data)
-
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(Data{
 			Message: "successfully sent!",
@@ -143,6 +142,18 @@ func homeRoute(i *inertia.Inertia) http.Handler {
 
 }
 
+func porkbunRoute(i *inertia.Inertia) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authenticated(i, w, r)
+		err := i.Render(w, r, "Porkbun")
+		if err != nil {
+			handleServerErr(w, err)
+			return
+		}
+	})
+
+}
+
 func serveFavicon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/x-icon")
 	http.ServeFile(w, r, "./public/favicon.ico")
@@ -152,4 +163,17 @@ func handleServerErr(w http.ResponseWriter, err error) {
 	log.Printf("http error: %s\n", err)
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write([]byte("server error"))
+}
+
+func authenticated(i *inertia.Inertia, w http.ResponseWriter, r *http.Request) {
+	admin := os.Getenv("ADMIN_NAME")
+	cookie, err := getCookie(r)
+	if err != nil {
+		i.Location(w, r, "/")
+		return
+	}
+	if cookie != admin {
+		i.Location(w, r, "/")
+		return
+	}
 }

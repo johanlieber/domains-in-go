@@ -1,7 +1,14 @@
-# Gonertia Solid Example
+# Domain Requester for Porkbun
 
-This is a template for start using the [Golang Inertia Adapter](https://github.com/romsar/gonertia) using Svelte 4
-
-1. Create public folder at root of project
-2. build it once with npm/pnpm/etc
-3. for HMR run both 'npm run dev' and 'go run .'
+DB Setup
+--------
+model domain {
+  id String @id @default(cuid())
+  identifier String
+  requestType String
+  baseDomain String
+  targetHost String
+  TTL Int
+  description String
+  createdAt DateTime @default(now())
+}
