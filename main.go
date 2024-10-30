@@ -29,6 +29,7 @@ func main() {
 	mux.Handle("/logout", i.Middleware(logoutRoute(i)))
 	mux.Handle("/porkbun", i.Middleware(porkbunRoute(i)))
 	mux.Handle("/data", dataRoute())
+	mux.Handle("/domains", domainsRoute())
 	mux.HandleFunc("/favicon.ico", serveFavicon)
 	mux.Handle("/build/", http.StripPrefix("/build/", http.FileServer(http.Dir("./public/build"))))
 

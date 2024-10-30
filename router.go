@@ -72,7 +72,7 @@ type InputData struct {
 	Description string `json:"description"`
 }
 
-func checkPostJson(w http.ResponseWriter, r *http.Request) {
+func validatePostWithJSON(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -104,17 +104,43 @@ func fromJSON[T any](w http.ResponseWriter, r *http.Request) (T, error) {
 
 func dataRoute() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		checkPostJson(w, r)
+		validatePostWithJSON(w, r)
 		data, err := fromJSON[InputData](w, r)
-		if err == nil {
-			fmt.Printf("Received data: %+v\n", data)
+		if err != nil {
+			return
 		}
+		fmt.Printf("Received data: %+v\n", data)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(Data{
 			Message: "successfully sent!",
 		})
 	})
 }
+
+type DomainData struct {
+	Kind        string `json:"kind"`
+}
+
+type DomainsResponse struct {
+	Domains []string `json:"domains"`
+}
+
+func domainsRoute() http.Handler {
+	// TODO: add auth to this
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		validatePostWithJSON(w, r)
+		data, err := fromJSON[DomainData](w, r)
+		if err != nil {
+			return
+		}
+		fmt.Printf("Received data: %+v\n", data)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(DomainsResponse{
+			Domains: []string{"soy.sh","dns.soy.sh"},
+		})
+	})
+}
+
 
 type User struct {
 	Name     string `json:"name"`

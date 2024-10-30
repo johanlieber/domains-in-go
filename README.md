@@ -1,5 +1,9 @@
 # Domain Requester for Porkbun
 
+API Setup
+---------
+add auth to the routes
+
 DB Setup
 --------
 model domain {
