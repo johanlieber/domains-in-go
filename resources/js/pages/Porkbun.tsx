@@ -5,7 +5,17 @@ import { Title } from "@solidjs/meta";
 import { Match, Switch, For } from "solid-js";
 
 type PorkApiResponse = {
-  domains: string[];
+  domains: { tag: string; name: string; date: string }[];
+}
+
+const ListedDomain = (props: { tag: string; name: string; date: string }) => {
+  return (
+    <section class='flex flex-row gap-x-10'>
+      <span class='rounded px-3 bg-pink-300 font-extrabold text-red-500'>{props.tag}</span>
+      <span>{props.name}</span>
+      <span class='text-red-600'>{props.date}</span>
+    </section>
+  )
 }
 
 const Domains = () => {
@@ -37,11 +47,11 @@ const Domains = () => {
             </div>
           </section>
         </form>
-        <span class='w-2/4 rounded-lg bg-slate-200 h-96 px-4 py-3 font-bold text-3xl'>
+        <span class='flex flex-col gap-y-5 w-1/2 min-w-fit rounded-lg bg-slate-200 min-h-20 h-auto px-4 py-3 text-3xl'>
           <Switch>
             <Match when={porkApiSubmit.isSuccess}>
               <For each={porkApiSubmit.data.domains}>
-                {(item)=> <p>{item}</p>}
+                {(item) => <ListedDomain tag={item.tag} name={item.name} date={item.date} />}
               </For>
             </Match>
           </Switch>

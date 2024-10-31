@@ -29,3 +29,4 @@ go.work
 node_modules/
 tmp/
 domains
+public/hot

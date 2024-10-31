@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -102,8 +103,9 @@ func fromJSON[T any](w http.ResponseWriter, r *http.Request) (T, error) {
 	return data, nil
 }
 
-func dataRoute() http.Handler {
+func dataRoute(i *inertia.Inertia) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authenticated(i, w, r)
 		validatePostWithJSON(w, r)
 		data, err := fromJSON[InputData](w, r)
 		if err != nil {
@@ -118,29 +120,107 @@ func dataRoute() http.Handler {
 }
 
 type DomainData struct {
-	Kind        string `json:"kind"`
+	Kind string `json:"kind"`
 }
 
 type DomainsResponse struct {
-	Domains []string `json:"domains"`
+	Domains []DomainInfo `json:"domains"`
 }
 
-func domainsRoute() http.Handler {
-	// TODO: add auth to this
+type DomainInfo struct {
+	Tag  string `json:"tag"`
+	Name string `json:"name"`
+	Date string `json:"date"`
+}
+
+type ApiResponse struct {
+	Status  string          `json:"status"`
+	Domains []PorkbunDomain `json:"domains"`
+}
+
+type PorkbunDomain struct {
+	Domain       string `json:"domain"`
+	Status       string `json:"status"`
+	TLD          string `json:"tld"`
+	CreateDate   string `json:"createDate"`
+	ExpireDate   string `json:"expireDate"`
+	SecurityLock string `json:"securityLock"`
+	WhoisPrivacy string `json:"whoisPrivacy"`
+	AutoRenew    int    `json:"autoRenew"`
+	NotLocal     int    `json:"notLocal"`
+}
+
+type HTTPError struct {
+	StatusCode int
+	Status     string
+	Body       string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("HTTP error: %s (code: %d), body : %s", e.Status, e.StatusCode, e.Body)
+}
+
+func fromResponse[T any](res *http.Response) (T, error) {
+	var result T
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return result, fmt.Errorf("error reading response body: %w", err)
+	}
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return result, fmt.Errorf("error parsing JSON response : %w", err)
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return result, &HTTPError{
+			StatusCode: res.StatusCode,
+			Status:     res.Status,
+			Body:       string(body),
+		}
+	}
+	return result, nil
+}
+
+func processDomains(data ApiResponse) []DomainInfo {
+	result := []DomainInfo{}
+	for _, item := range data.Domains {
+		msg := DomainInfo{Date: item.ExpireDate, Name: item.Domain, Tag: item.Status}
+		result = append(result, msg)
+	}
+	return result
+}
+
+func domainsRoute(i *inertia.Inertia) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authenticated(i, w, r)
 		validatePostWithJSON(w, r)
-		data, err := fromJSON[DomainData](w, r)
+		_, err := fromJSON[DomainData](w, r)
 		if err != nil {
 			return
 		}
-		fmt.Printf("Received data: %+v\n", data)
 		w.Header().Set("Content-Type", "application/json")
+		var (
+			APIKEY    = os.Getenv("DOMAIN_API_KEY")
+			APISECRET = os.Getenv("DOMAIN_API_SECRET")
+		)
+		listAllDomainsURL := "https://api.porkbun.com/api/json/v3/domain/listAll"
+		req := map[string]string{
+			"secretapikey":  APISECRET,
+			"apikey":        APIKEY,
+			"start":         "1",
+			"includeLabels": "no",
+		}
+		sendReqJSON, _ := json.Marshal(req)
+		res, err := http.Post(listAllDomainsURL, "application/json", bytes.NewBuffer(sendReqJSON))
+		domains, err := fromResponse[ApiResponse](res)
+		if err != nil {
+			return
+		}
 		json.NewEncoder(w).Encode(DomainsResponse{
-			Domains: []string{"soy.sh","dns.soy.sh"},
+			Domains: processDomains(domains),
 		})
 	})
 }
-
 
 type User struct {
 	Name     string `json:"name"`
