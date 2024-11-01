@@ -268,7 +268,7 @@ func domainsRoute(i *inertia.Inertia) http.Handler {
 		}
 		var domainInfo []DomainInfo
 		switch choice.Kind {
-		case "listing":
+		case "fetch-listing":
 			w.Header().Set("Content-Type", "application/json")
 			var (
 				APIKEY    = os.Getenv("DOMAIN_API_KEY")
@@ -331,14 +331,13 @@ func porkbunRoute(i *inertia.Inertia) http.Handler {
 			log.Fatalln(dbErr)
 		}
 		rows := []OwnedDomains{}
-		db.Select(&rows, `SELECT status, name, expires_at FROM owned_domains;`)
+		db.Select(&rows, `SELECT status, name, expires_at FROM owned_domains ORDER BY expires_at ASC;`)
 		err := i.Render(w, r, "Porkbun", inertia.Props{"domains": rows})
 		if err != nil {
 			handleServerErr(w, err)
 			return
 		}
 	})
-
 }
 
 func serveFavicon(w http.ResponseWriter, r *http.Request) {

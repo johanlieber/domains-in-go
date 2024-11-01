@@ -2,7 +2,7 @@ import Layout from '@/layouts/Layout'
 import ky from "ky";
 import { createMutation } from "@tanstack/solid-query";
 import { Title } from "@solidjs/meta";
-import { Match, Switch, For } from "solid-js";
+import { Match, Switch, For, createSignal } from "solid-js";
 
 type PorkApiResponse = {
   domains: { tag: string; name: string; date: string; target: string; }[];
@@ -38,45 +38,48 @@ const DefaultDomains = (domains: { status: string; name: string; expires_at: Dat
 
 
 const Domains = (props: { domains: { status: string; name: string; expires_at: Date }[] }) => {
-  let kind: HTMLSelectElement;
+  let [kind, setKind] = createSignal();
   const listing = "listing";
   const changed = "changed";
+  const fetchListing = "fetch-listing";
   let { domains } = props;
   const porkApiSubmit = createMutation(() => ({
     mutationKey: ['pork-api'],
     mutationFn: () => ky.post<PorkApiResponse>('/domains', {
       json: {
-        kind: kind.value
+        kind: kind()
       }
     }).json()
   }));
+  // Setup Dynamic?
   return (
     <>
       <Title>Domains</Title>
       <section class="flex min-h-screen flex-col items-center gap-y-5 p-12">
         <form onsubmit={(e) => {
           e.preventDefault();
-          porkApiSubmit.mutate();
         }} class='w-2/4'>
           <section class='flex flex-col gap-y-3'>
             <label class='text-3xl font-extrabold text-rose-600' for="names">Names</label>
             <div class='flex flex-row gap-x-5'>
-              <select ref={kind} class='focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-3 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400' id="names" name="names">
-                <option value={listing}>List Available Domains</option>
+              <select onChange={() => {
+                if (kind() !== listing) porkApiSubmit.mutate();
+              }} onInput={(e) => setKind(e.currentTarget.value)} class='focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-3 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400' id="names" name="names">
+                <option selected={true} onSelect={() => setKind(listing)} value={listing}>List Available Domains</option>
                 <option value={changed}>Changed Domains</option>
+                <option value={fetchListing}>Fetch New Domains</option>
               </select>
-              <button class='border-2 rounded-lg p-4 bg-rose-600 text-white text-lg font-extrabold'>Submit</button>
             </div>
           </section>
         </form>
         <span class='flex flex-col gap-y-5 w-1/2 min-w-fit rounded-lg bg-slate-200 min-h-20 h-auto px-4 py-3 text-3xl'>
-          <Switch fallback={<DefaultDomains {...domains} />}>
-            <Match when={porkApiSubmit.isSuccess && kind.value === listing}>
+          <Switch fallback={<DefaultDomains {...domains} />} >
+            <Match when={porkApiSubmit.isSuccess && kind() === fetchListing}>
               <For each={porkApiSubmit.data.domains}>
                 {(item) => <ListedDomains tag={item.tag} name={item.name} date={item.date} />}
               </For>
             </Match>
-            <Match when={porkApiSubmit.isSuccess && kind.value === changed}>
+            <Match when={porkApiSubmit.isSuccess && kind() === changed}>
               <For each={porkApiSubmit.data.domains}>
                 {(item) => <ChangedDomains tag={item.tag} name={item.name} target={item.target} />}
               </For>
