@@ -28,11 +28,20 @@ const ChangedDomains = (props: { tag: string; name: string; target: string }) =>
   )
 }
 
+const DefaultDomains = (domains: { status: string; name: string; expires_at: Date }[]) => {
+  return (
+    <For each={domains}>
+      {(item) => <ListedDomains tag={item.status} name={item.name} date={item.expires_at.toLocaleString()} />}
+    </For>
+  )
+}
 
-const Domains = () => {
+
+const Domains = (props: { domains: { status: string; name: string; expires_at: Date }[] }) => {
   let kind: HTMLSelectElement;
   const listing = "listing";
   const changed = "changed";
+  let { domains } = props;
   const porkApiSubmit = createMutation(() => ({
     mutationKey: ['pork-api'],
     mutationFn: () => ky.post<PorkApiResponse>('/domains', {
@@ -61,7 +70,7 @@ const Domains = () => {
           </section>
         </form>
         <span class='flex flex-col gap-y-5 w-1/2 min-w-fit rounded-lg bg-slate-200 min-h-20 h-auto px-4 py-3 text-3xl'>
-          <Switch>
+          <Switch fallback={<DefaultDomains {...domains} />}>
             <Match when={porkApiSubmit.isSuccess && kind.value === listing}>
               <For each={porkApiSubmit.data.domains}>
                 {(item) => <ListedDomains tag={item.tag} name={item.name} date={item.date} />}

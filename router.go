@@ -185,18 +185,43 @@ func fromResponse[T any](res *http.Response) (T, error) {
 	return result, nil
 }
 
-func insertIntoCreatedDB() {
+type OwnedDomains struct {
+	Status     string    `db:"status" json:"status"`
+	Name       string    `db:"name" json:"name"`
+	ExpiresAt  time.Time `db:"expires_at" json:"expires_at"`
+	ObtainedAt time.Time `db:"obtained_at" json:"obtained_at"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+}
+
+func insertIntoCreatedDB(domains []PorkbunDomain) {
 	table := `
-	CREATE TABLE owned_domains IF NOT EXISTS (
+	CREATE TABLE IF NOT EXISTS owned_domains (
 		status VARCHAR(100) NOT NULL,
 		name VARCHAR(100) UNIQUE NOT NULL,
 		expires_at TIMESTAMP,
 		obtained_at TIMESTAMP,
-		created_at DEFAULT CURRENT_TIMESTAMP
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY (name)
 	)
 	`
-
+	db, err := sqlx.Connect("postgres", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	db.MustExec(table)
+	tx := db.MustBegin()
+	for _, domain := range domains {
+		expired_at, dateErr := time.Parse("2006-01-02 15:04:05", domain.ExpireDate)
+		if dateErr != nil {
+			fmt.Println(dateErr)
+		}
+		created_at, cdateErr := time.Parse("2006-01-02 15:04:05", domain.CreateDate)
+		if cdateErr != nil {
+			fmt.Println(dateErr)
+		}
+		tx.NamedExec("INSERT INTO owned_domains (status,name,expires_at,obtained_at) VALUES (:status,:name,:expires_at,:obtained_at) ON CONFLICT (name) DO UPDATE SET status = EXCLUDED.status", &OwnedDomains{Status: domain.Status, Name: domain.Domain, ExpiresAt: expired_at, ObtainedAt: created_at})
+	}
+	tx.Commit()
 	fmt.Println(table)
 }
 
@@ -229,6 +254,7 @@ func processDomains(data ApiResponse) []DomainInfo {
 		msg := DomainInfo{Date: item.ExpireDate, Name: item.Domain, Tag: item.Status}
 		result = append(result, msg)
 	}
+	insertIntoCreatedDB(data.Domains)
 	return result
 }
 
@@ -263,7 +289,6 @@ func domainsRoute(i *inertia.Inertia) http.Handler {
 			}
 			domainInfo = processDomains(domains)
 		default:
-			fmt.Println("Hello")
 			domainInfo = processDBResults()
 		}
 		json.NewEncoder(w).Encode(DomainsResponse{
@@ -301,7 +326,13 @@ func homeRoute(i *inertia.Inertia) http.Handler {
 func porkbunRoute(i *inertia.Inertia) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authenticated(i, w, r)
-		err := i.Render(w, r, "Porkbun")
+		db, dbErr := sqlx.Connect("postgres", os.Getenv("DATABASE_URL"))
+		if dbErr != nil {
+			log.Fatalln(dbErr)
+		}
+		rows := []OwnedDomains{}
+		db.Select(&rows, `SELECT status, name, expires_at FROM owned_domains;`)
+		err := i.Render(w, r, "Porkbun", inertia.Props{"domains": rows})
 		if err != nil {
 			handleServerErr(w, err)
 			return
