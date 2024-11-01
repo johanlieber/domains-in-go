@@ -8,7 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 	"github.com/markbates/goth/gothic"
 	inertia "github.com/romsar/gonertia"
 )
@@ -128,9 +131,10 @@ type DomainsResponse struct {
 }
 
 type DomainInfo struct {
-	Tag  string `json:"tag"`
-	Name string `json:"name"`
-	Date string `json:"date"`
+	Tag    string `json:"tag"`
+	Name   string `json:"name"`
+	Target string `json:"target"`
+	Date   string `json:"date"`
 }
 
 type ApiResponse struct {
@@ -181,6 +185,44 @@ func fromResponse[T any](res *http.Response) (T, error) {
 	return result, nil
 }
 
+func insertIntoCreatedDB() {
+	table := `
+	CREATE TABLE owned_domains IF NOT EXISTS (
+		status VARCHAR(100) NOT NULL,
+		name VARCHAR(100) UNIQUE NOT NULL,
+		expires_at TIMESTAMP,
+		obtained_at TIMESTAMP,
+		created_at DEFAULT CURRENT_TIMESTAMP
+		PRIMARY KEY (name)
+	)
+	`
+
+	fmt.Println(table)
+}
+
+type DBRowDomain struct {
+	Identifier  string    `db:"identifier"`
+	RequestType string    `db:"requestType"`
+	BaseDomain  string    `db:"baseDomain"`
+	TargetHost  string    `db:"targetHost"`
+	CreatedAt   time.Time `db:"createdAt"`
+}
+
+func processDBResults() []DomainInfo {
+	db, err := sqlx.Connect("postgres", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	row := []DBRowDomain{}
+	db.Select(&row, `SELECT "identifier","requestType", "baseDomain", "targetHost", "createdAt" FROM domain;`)
+	result := []DomainInfo{}
+	for _, item := range row {
+		msg := DomainInfo{Date: item.CreatedAt.Format("2006.01.02"), Name: fmt.Sprintf("%s.%s", item.Identifier, item.BaseDomain), Tag: item.RequestType, Target: item.TargetHost}
+		result = append(result, msg)
+	}
+	return result
+}
+
 func processDomains(data ApiResponse) []DomainInfo {
 	result := []DomainInfo{}
 	for _, item := range data.Domains {
@@ -194,30 +236,38 @@ func domainsRoute(i *inertia.Inertia) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authenticated(i, w, r)
 		validatePostWithJSON(w, r)
-		_, err := fromJSON[DomainData](w, r)
+		choice, err := fromJSON[DomainData](w, r)
 		if err != nil {
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		var (
-			APIKEY    = os.Getenv("DOMAIN_API_KEY")
-			APISECRET = os.Getenv("DOMAIN_API_SECRET")
-		)
-		listAllDomainsURL := "https://api.porkbun.com/api/json/v3/domain/listAll"
-		req := map[string]string{
-			"secretapikey":  APISECRET,
-			"apikey":        APIKEY,
-			"start":         "1",
-			"includeLabels": "no",
-		}
-		sendReqJSON, _ := json.Marshal(req)
-		res, err := http.Post(listAllDomainsURL, "application/json", bytes.NewBuffer(sendReqJSON))
-		domains, err := fromResponse[ApiResponse](res)
-		if err != nil {
-			return
+		var domainInfo []DomainInfo
+		switch choice.Kind {
+		case "listing":
+			w.Header().Set("Content-Type", "application/json")
+			var (
+				APIKEY    = os.Getenv("DOMAIN_API_KEY")
+				APISECRET = os.Getenv("DOMAIN_API_SECRET")
+			)
+			listAllDomainsURL := "https://api.porkbun.com/api/json/v3/domain/listAll"
+			req := map[string]string{
+				"secretapikey":  APISECRET,
+				"apikey":        APIKEY,
+				"start":         "1",
+				"includeLabels": "no",
+			}
+			sendReqJSON, _ := json.Marshal(req)
+			res, err := http.Post(listAllDomainsURL, "application/json", bytes.NewBuffer(sendReqJSON))
+			domains, err := fromResponse[ApiResponse](res)
+			if err != nil {
+				return
+			}
+			domainInfo = processDomains(domains)
+		default:
+			fmt.Println("Hello")
+			domainInfo = processDBResults()
 		}
 		json.NewEncoder(w).Encode(DomainsResponse{
-			Domains: processDomains(domains),
+			Domains: domainInfo,
 		})
 	})
 }
