@@ -3,6 +3,7 @@ import ky from "ky";
 import { createMutation } from "@tanstack/solid-query";
 import { Title } from "@solidjs/meta";
 import { Match, Switch, For, createSignal, createEffect } from "solid-js";
+import { Link } from "inertia-adapter-solid";
 
 type PorkApiResponse = {
   domains: { tag: string; name: string; date: string; target: string; }[];
@@ -13,7 +14,9 @@ const ListedDomains = (props: { tag: string; name: string; date: string }) => {
   return (
     <tr class='tracking-wide text-center'>
       <td class='rounded px-3 bg-pink-300 font-extrabold text-red-500'>{tag}</td>
-      <td>{name}</td>
+      <Link href={`/dashboard?url=${name}`}>
+        <td class='underline'>{name}</td>
+      </Link>
       <td class='text-red-600 text-lg'>{date}</td>
     </tr>
   )
@@ -57,9 +60,6 @@ const Domains = (props: { domains: { status: string; name: string; expires_at: D
       }
     }).json()
   }));
-  createEffect(() => {
-    if (kind() !== listing) porkApiSubmit.mutate();
-  })
   // Setup Dynamic?
   return (
     <>
@@ -71,7 +71,10 @@ const Domains = (props: { domains: { status: string; name: string; expires_at: D
           <section class='flex flex-col gap-y-3'>
             <label class='text-3xl font-extrabold text-rose-600' for="names">Names</label>
             <div class='flex flex-row gap-x-5'>
-              <select onInput={(e) => setKind(e.currentTarget.value)} class='focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-3 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400' id="names" name="names">
+              <select onInput={(e) => {
+                setKind(e.currentTarget.value)
+                if (kind() !== listing) porkApiSubmit.mutate()
+              }} class='focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-3 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400' id="names" name="names">
                 <option selected={true} value={listing}>List Available Domains</option>
                 <option value={changed}>Changed Domains</option>
                 <option value={fetchListing}>Fetch New Domains</option>

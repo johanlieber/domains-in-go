@@ -12,10 +12,11 @@ const DashBoard = (props: { url: string; domains: string[] }) => {
     let subdomain: HTMLInputElement;
     let ttl: HTMLInputElement;
     let reqType: HTMLSelectElement;
-    let [baseUrl, setUrl] = createSignal(props.domains[0]);
     let prefix: HTMLInputElement;
     let host: HTMLInputElement;
     let description: HTMLTextAreaElement;
+    const params = new URLSearchParams(window.location.search);
+    let [baseUrl, setUrl] = createSignal(params.get("url") ?? props.domains[0]);
     const collections = () => props.domains;
     const [domain, setDomain] = createSignal(baseUrl());
     const postFormData = createMutation(() => ({
@@ -69,7 +70,7 @@ const DashBoard = (props: { url: string; domains: string[] }) => {
 
                                 }} ref={baseUrl} name="full" id="full-select" class="focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400">
                                     <For each={collections()}>
-                                        {(item) => <option value={item}>{item}</option>}
+                                        {(item) => <option selected={baseUrl() === item} value={item}>{item}</option>}
                                     </For>
                                 </select>
                             </div>
