@@ -1,27 +1,28 @@
 import Layout from "@/layouts/Layout";
 import ky from "ky";
 import { createMutation } from "@tanstack/solid-query";
-import { Match, Switch, createSignal } from "solid-js";
+import { Match, Switch, createSignal, For } from "solid-js";
 import { Title } from "@solidjs/meta";
 
 type Message = {
     message: string;
 }
 
-const DashBoard = (props: { url: string; }) => {
+const DashBoard = (props: { url: string; domains: string[] }) => {
     let subdomain: HTMLInputElement;
     let ttl: HTMLInputElement;
     let reqType: HTMLSelectElement;
+    let [baseUrl, setUrl] = createSignal(props.domains[0]);
     let prefix: HTMLInputElement;
     let host: HTMLInputElement;
     let description: HTMLTextAreaElement;
-    const baseDomain = () => props.url;
-    const [domain, setDomain] = createSignal(baseDomain());
+    const collections = () => props.domains;
+    const [domain, setDomain] = createSignal(baseUrl());
     const postFormData = createMutation(() => ({
         mutationKey: ['post-form'],
         mutationFn: () => ky.post<Message>('/data', {
             json: {
-                subdomain: baseDomain(), ttl: Number(ttl.value), kind: reqType.value, prefix: prefix.value, host: host.value, description: description.value
+                domain: baseUrl(), ttl: Number(ttl.value), kind: reqType.value, prefix: prefix.value, host: host.value, description: description.value
             }
         }).json()
     }));
@@ -56,15 +57,28 @@ const DashBoard = (props: { url: string; }) => {
                     }}>
                         <div class="mb-4 grid gap-4 sm:mb-5 sm:grid-cols-2 sm:gap-6">
                             <div class="sm:col-span-2">
-                                <label for="sub" class=" mb-2 block text-xl font-bold text-slate-50 dark:text-white">Subdomain</label>
+                                <label for="sub" class=" mb-2 block text-xl font-bold text-slate-50 dark:text-white">FQDN</label>
                                 <input type="text" name="sub" id="name" class="focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" placeholder="Type product name" disabled={true} ref={subdomain} value={domain()} />
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label for="full" class="mb-2 block text-xl font-bold text-slate-50 dark:text-white">DomainList</label>
+                                <select onInput={(e) => {
+                                    setUrl(e.currentTarget.value)
+                                    const join = prefix.value ? "." : "";
+                                    setDomain(() => `${prefix.value}${join}${baseUrl()}`)
+
+                                }} ref={baseUrl} name="full" id="full-select" class="focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400">
+                                    <For each={collections()}>
+                                        {(item) => <option value={item}>{item}</option>}
+                                    </For>
+                                </select>
                             </div>
                             <div class="w-full">
                                 <label for="prefix" class="mb-2 block text-lg font-bold text-slate-50 dark:text-white">Prefix</label>
                                 <input ref={prefix} onInput={(e) => {
                                     const join = e.target.value ? "." : "";
-                                    setDomain(() => `${e.target.value}${join}${baseDomain()}`)
-                                }} autocomplete="off" type="text" name="prefix" id="prefix" class="focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" placeholder="Product prefix" required={true} />
+                                    setDomain(() => `${e.target.value}${join}${baseUrl()}`)
+                                }} autocomplete="off" type="text" name="prefix" id="prefix" class="focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" placeholder="Product prefix" required={true} value={"*"} />
                             </div>
                             <div class="w-full">
                                 <label for="ttl" class="mb-2 block text-xl font-bold text-slate-50 dark:text-white">TTL (in mins)</label>
@@ -81,7 +95,7 @@ const DashBoard = (props: { url: string; }) => {
                             </div>
                             <div>
                                 <label for="host-target-ip" class="mb-2 block text-xl font-bold text-slate-50 dark:text-white">Host Target (IP)</label>
-                                <input ref={host} autocomplete="off" type="text" pattern="^([0-9]{1,3}\.){3}[0-9]{1,3}$" name="host-target-ip" id="host-target-ip" class="focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" placeholder="Ex. 12" required={true} />
+                                <input ref={host} autocomplete="off" type="text" pattern="^([0-9]{1,3}\.){3}[0-9]{1,3}$" name="host-target-ip" id="host-target-ip" class="focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" placeholder="Ex. 1.1.1.1" required={true} />
                             </div>
                             <div class="sm:col-span-2">
                                 <label for="description" class="mb-2 block text-xl font-bold text-slate-50 dark:text-white">Description</label>

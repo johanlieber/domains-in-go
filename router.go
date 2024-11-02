@@ -13,6 +13,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/markbates/goth/gothic"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	inertia "github.com/romsar/gonertia"
 )
 
@@ -57,9 +58,15 @@ func setupRoute(i *inertia.Inertia) http.Handler {
 }
 
 func dashboardRoute(i *inertia.Inertia) http.Handler {
+	db, err := sqlx.Connect("postgres", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	var domains []string
+	db.Select(&domains, `SELECT name from owned_domains`)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authenticated(i, w, r)
-		pageErr := i.Render(w, r, "Dashboard", inertia.Props{"url": os.Getenv("VITE_BASE_URL")})
+		pageErr := i.Render(w, r, "Dashboard", inertia.Props{"url": os.Getenv("VITE_BASE_URL"), "domains": domains})
 		if pageErr != nil {
 			handleServerErr(w, pageErr)
 			return
@@ -68,7 +75,7 @@ func dashboardRoute(i *inertia.Inertia) http.Handler {
 }
 
 type InputData struct {
-	SubDomain   string `json:"subdomain"`
+	Domain      string `json:"domain"`
 	TTL         int    `json:"ttl"`
 	Kind        string `json:"kind"`
 	Prefix      string `json:"prefix"`
@@ -115,6 +122,36 @@ func dataRoute(i *inertia.Inertia) http.Handler {
 			return
 		}
 		fmt.Printf("Received data: %+v\n", data)
+		var (
+			APIKEY    = os.Getenv("DOMAIN_API_KEY")
+			APISECRET = os.Getenv("DOMAIN_API_SECRET")
+		)
+		createRecord := fmt.Sprintf("https://api.porkbun.com/api/json/v3/dns/create/%s", data.Domain)
+		secs := 60
+		ttl := data.TTL * secs
+		req := map[string]string{
+			"secretapikey": APISECRET,
+			"apikey":       APIKEY,
+			"type":         data.Kind,
+			"content":      data.Host,
+			"ttl":          fmt.Sprintf("%d", ttl),
+		}
+		if data.Prefix != "*" {
+			req["name"] = data.Prefix
+		}
+		reqJSON, _ := json.Marshal(req)
+		res, err := http.Post(createRecord, "application/json", bytes.NewBuffer(reqJSON))
+		fmt.Println(res)
+		if err == nil {
+			db, err := sqlx.Connect("postgres", os.Getenv("DATABASE_URL"))
+			if err != nil {
+				log.Fatalln(err)
+			}
+			recordId, _ := gonanoid.New()
+			tx := db.MustBegin()
+			tx.MustExec(`INSERT INTO domain ("id","identifier","requestType","baseDomain","targetHost","TTL","description") VALUES ($1,$2,$3,$4,$5,$6,$7)`, recordId, data.Prefix, data.Kind, data.Domain, data.Host, ttl, data.Description)
+			tx.Commit()
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(Data{
 			Message: "successfully sent!",
@@ -150,7 +187,7 @@ type PorkbunDomain struct {
 	ExpireDate   string `json:"expireDate"`
 	SecurityLock string `json:"securityLock"`
 	WhoisPrivacy string `json:"whoisPrivacy"`
-	AutoRenew    int    `json:"autoRenew"`
+	AutoRenew    any    `json:"autoRenew"`
 	NotLocal     int    `json:"notLocal"`
 }
 
@@ -222,7 +259,6 @@ func insertIntoCreatedDB(domains []PorkbunDomain) {
 		tx.NamedExec("INSERT INTO owned_domains (status,name,expires_at,obtained_at) VALUES (:status,:name,:expires_at,:obtained_at) ON CONFLICT (name) DO UPDATE SET status = EXCLUDED.status", &OwnedDomains{Status: domain.Status, Name: domain.Domain, ExpiresAt: expired_at, ObtainedAt: created_at})
 	}
 	tx.Commit()
-	fmt.Println(table)
 }
 
 type DBRowDomain struct {
@@ -267,9 +303,9 @@ func domainsRoute(i *inertia.Inertia) http.Handler {
 			return
 		}
 		var domainInfo []DomainInfo
+		w.Header().Set("Content-Type", "application/json")
 		switch choice.Kind {
 		case "fetch-listing":
-			w.Header().Set("Content-Type", "application/json")
 			var (
 				APIKEY    = os.Getenv("DOMAIN_API_KEY")
 				APISECRET = os.Getenv("DOMAIN_API_SECRET")
@@ -285,6 +321,7 @@ func domainsRoute(i *inertia.Inertia) http.Handler {
 			res, err := http.Post(listAllDomainsURL, "application/json", bytes.NewBuffer(sendReqJSON))
 			domains, err := fromResponse[ApiResponse](res)
 			if err != nil {
+				fmt.Println(err)
 				return
 			}
 			domainInfo = processDomains(domains)
@@ -309,7 +346,6 @@ func homeRoute(i *inertia.Inertia) http.Handler {
 			Name:     cookie,
 			LoggedIn: cookieErr == nil && cookie != "",
 		}
-		fmt.Println(cookie)
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return

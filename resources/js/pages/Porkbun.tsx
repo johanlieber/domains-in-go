@@ -2,37 +2,43 @@ import Layout from '@/layouts/Layout'
 import ky from "ky";
 import { createMutation } from "@tanstack/solid-query";
 import { Title } from "@solidjs/meta";
-import { Match, Switch, For, createSignal } from "solid-js";
+import { Match, Switch, For, createSignal, createEffect } from "solid-js";
 
 type PorkApiResponse = {
   domains: { tag: string; name: string; date: string; target: string; }[];
 }
 
 const ListedDomains = (props: { tag: string; name: string; date: string }) => {
+  const { tag, name, date } = props;
   return (
-    <section class='flex flex-row gap-x-10'>
-      <span class='rounded px-3 bg-pink-300 font-extrabold text-red-500'>{props.tag}</span>
-      <span>{props.name}</span>
-      <span class='text-red-600'>{props.date}</span>
-    </section>
+    <tr class='tracking-wide text-center'>
+      <td class='rounded px-3 bg-pink-300 font-extrabold text-red-500'>{tag}</td>
+      <td>{name}</td>
+      <td class='text-red-600 text-lg'>{date}</td>
+    </tr>
   )
 }
 
 const ChangedDomains = (props: { tag: string; name: string; target: string }) => {
+  const { tag, name, target } = props;
   return (
-    <section class='flex flex-row gap-x-10'>
-      <span class='rounded px-3 bg-pink-300 font-extrabold text-red-500'>{props.tag}</span>
-      <span>{props.name}</span>
-      <span class='text-red-600'>{props.target}</span>
-    </section>
+    <tr class='tracking-wide text-center'>
+      <td class='rounded px-3 bg-pink-300 font-extrabold text-red-500'>{tag}</td>
+      <td>{name}</td>
+      <td class='text-red-600 text-lg'>{target}</td>
+    </tr>
   )
 }
 
 const DefaultDomains = (domains: { status: string; name: string; expires_at: Date }[]) => {
   return (
-    <For each={domains}>
-      {(item) => <ListedDomains tag={item.status} name={item.name} date={item.expires_at.toLocaleString()} />}
-    </For>
+    <table class=''>
+      <tbody class='divide-y-4'>
+        <For each={domains}>
+          {(item) => <ListedDomains tag={item.status} name={item.name} date={item.expires_at.toLocaleString()} />}
+        </For>
+      </tbody>
+    </table>
   )
 }
 
@@ -51,6 +57,9 @@ const Domains = (props: { domains: { status: string; name: string; expires_at: D
       }
     }).json()
   }));
+  createEffect(() => {
+    if (kind() !== listing) porkApiSubmit.mutate();
+  })
   // Setup Dynamic?
   return (
     <>
@@ -62,10 +71,8 @@ const Domains = (props: { domains: { status: string; name: string; expires_at: D
           <section class='flex flex-col gap-y-3'>
             <label class='text-3xl font-extrabold text-rose-600' for="names">Names</label>
             <div class='flex flex-row gap-x-5'>
-              <select onChange={() => {
-                if (kind() !== listing) porkApiSubmit.mutate();
-              }} onInput={(e) => setKind(e.currentTarget.value)} class='focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-3 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400' id="names" name="names">
-                <option selected={true} onSelect={() => setKind(listing)} value={listing}>List Available Domains</option>
+              <select onInput={(e) => setKind(e.currentTarget.value)} class='focus:ring-primary-600 focus:border-primary-600 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-3 text-xl text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400' id="names" name="names">
+                <option selected={true} value={listing}>List Available Domains</option>
                 <option value={changed}>Changed Domains</option>
                 <option value={fetchListing}>Fetch New Domains</option>
               </select>
@@ -75,14 +82,22 @@ const Domains = (props: { domains: { status: string; name: string; expires_at: D
         <span class='flex flex-col gap-y-5 w-1/2 min-w-fit rounded-lg bg-slate-200 min-h-20 h-auto px-4 py-3 text-3xl'>
           <Switch fallback={<DefaultDomains {...domains} />} >
             <Match when={porkApiSubmit.isSuccess && kind() === fetchListing}>
-              <For each={porkApiSubmit.data.domains}>
-                {(item) => <ListedDomains tag={item.tag} name={item.name} date={item.date} />}
-              </For>
+              <table>
+                <tbody class='divide-y-4'>
+                  <For each={porkApiSubmit.data.domains}>
+                    {(item) => <ListedDomains tag={item.tag} name={item.name} date={item.date} />}
+                  </For>
+                </tbody>
+              </table>
             </Match>
             <Match when={porkApiSubmit.isSuccess && kind() === changed}>
-              <For each={porkApiSubmit.data.domains}>
-                {(item) => <ChangedDomains tag={item.tag} name={item.name} target={item.target} />}
-              </For>
+              <table>
+                <tbody class='divide-y-4'>
+                  <For each={porkApiSubmit.data.domains}>
+                    {(item) => <ChangedDomains tag={item.tag} name={item.name} target={item.target} />}
+                  </For>
+                </tbody>
+              </table>
             </Match>
             <Match when={porkApiSubmit.isPending}>
               <p class='p-2'>Loading...</p>
