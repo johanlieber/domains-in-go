@@ -19,3 +19,6 @@ prod-solid:
 	@pnpm run build
 
 prod: prod-go prod-solid
+
+clean:
+	rm domains
