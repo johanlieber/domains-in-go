@@ -63,7 +63,7 @@ func dashboardRoute(i *inertia.Inertia) http.Handler {
 		log.Fatalln(err)
 	}
 	var domains []string
-	db.Select(&domains, `SELECT name from owned_domains`)
+	db.Select(&domains, `SELECT name from owned_domains ORDER BY name DESC`)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authenticated(i, w, r)
 		pageErr := i.Render(w, r, "Dashboard", inertia.Props{"url": os.Getenv("VITE_BASE_URL"), "domains": domains})
