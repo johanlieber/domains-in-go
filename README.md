@@ -11,3 +11,4 @@ Try out using Bun ORM?
 Things to do
 ------------
 Convert routing to Chi and use Auth middleware?
+Refactor to puts some files in app 
